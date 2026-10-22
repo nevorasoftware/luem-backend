@@ -212,8 +212,13 @@ export class FleetService {
   }
 
   async createVehicle(data: any, adminId: string) {
+    const brand = (data.brand || 'Marca').trim();
+    const model = (data.model || data.name || 'Modelo').trim();
+    const year = Number(data.year || new Date().getFullYear());
+    const plate = (data.plate || data.licensePlate || `P-${Date.now().toString().slice(-6)}`).trim().toUpperCase();
+
     // Generar slug único basado en marca-modelo-año-placa
-    const baseSlug = `${data.brand}-${data.model}-${data.year}-${data.plate}`
+    const baseSlug = `${brand}-${model}-${year}-${plate}`
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
@@ -223,35 +228,53 @@ export class FleetService {
 
     const featureIds: string[] = data.featureIds || [];
 
+    let categoryId = data.categoryId;
+    if (!categoryId) {
+      const defaultCat = await this.prisma.category.findFirst({ where: { active: true } });
+      if (defaultCat) categoryId = defaultCat.id;
+      else {
+        const anyCat = await this.prisma.category.findFirst();
+        if (anyCat) categoryId = anyCat.id;
+      }
+    }
+
+    const dailyRateVal = data.dailyRate !== undefined
+      ? Number(data.dailyRate)
+      : (data.dailyPrice ? (Number(data.dailyPrice) > 1000 ? Number(data.dailyPrice) / 100 : Number(data.dailyPrice)) : 45);
+
+    const depositVal = data.depositAmount !== undefined
+      ? Number(data.depositAmount)
+      : (data.securityDeposit ? (Number(data.securityDeposit) > 1000 ? Number(data.securityDeposit) / 100 : Number(data.securityDeposit)) : 400);
+
     const created = await this.prisma.vehicle.create({
       data: {
         slug,
-        brand: data.brand.trim(),
-        model: data.model.trim(),
-        year: Number(data.year),
-        plate: data.plate.trim().toUpperCase(),
+        brand,
+        model,
+        year,
+        plate,
         vin: data.vin ? data.vin.trim().toUpperCase() : null,
-        color: data.color?.trim(),
-        categoryId: data.categoryId,
-        vehicleType: data.vehicleType,
-        transmission: data.transmission,
-        fuelType: data.fuelType,
-        passengers: Number(data.passengers || 5),
+        color: data.color?.trim() || 'Blanco',
+        categoryId,
+        vehicleType: data.vehicleType || 'SUV',
+        transmission: data.transmission || 'AUTOMATICA',
+        fuelType: data.fuelType || 'GASOLINA',
+        passengers: Number(data.passengers || data.seats || 5),
         luggage: Number(data.luggage || 2),
         doors: data.doors ? Number(data.doors) : 4,
         airConditioning: data.airConditioning !== false,
         odometerKm: Number(data.odometerKm || 0),
-        dailyRate: new Prisma.Decimal(data.dailyRate),
+        dailyRate: new Prisma.Decimal(dailyRateVal),
         weeklyRate: data.weeklyRate ? new Prisma.Decimal(data.weeklyRate) : null,
         monthlyRate: data.monthlyRate ? new Prisma.Decimal(data.monthlyRate) : null,
-        depositAmount: data.depositAmount ? new Prisma.Decimal(data.depositAmount) : null,
+        depositAmount: new Prisma.Decimal(depositVal),
         kmIncludedPerDay: data.kmIncludedPerDay ? Number(data.kmIncludedPerDay) : null,
         extraKmFee: data.extraKmFee ? new Prisma.Decimal(data.extraKmFee) : null,
         description: data.description,
         rentalConditions: data.rentalConditions,
         minDriverAge: data.minDriverAge ? Number(data.minDriverAge) : 21,
         internalNotes: data.internalNotes,
-        operationalStatus: data.operationalStatus || 'OPERATIVO',
+        operationalStatus: data.operationalStatus || data.status || 'OPERATIVO',
         featured: Boolean(data.featured),
         publicVisible: data.publicVisible !== false,
         currentLocationId: data.currentLocationId || null,
@@ -276,35 +299,56 @@ export class FleetService {
   async updateVehicle(id: string, data: any, adminId: string) {
     const featureIds: string[] | undefined = data.featureIds;
 
+    const brand = data.brand?.trim();
+    const model = data.model ? data.model.trim() : (data.name ? data.name.trim() : undefined);
+    const plate = data.plate ? data.plate.trim().toUpperCase() : (data.licensePlate ? data.licensePlate.trim().toUpperCase() : undefined);
+    const operationalStatus = data.operationalStatus || data.status;
+
+    let dailyRate: Prisma.Decimal | undefined;
+    if (data.dailyRate !== undefined) {
+      dailyRate = new Prisma.Decimal(data.dailyRate);
+    } else if (data.dailyPrice !== undefined) {
+      const num = Number(data.dailyPrice);
+      dailyRate = new Prisma.Decimal(num > 1000 ? num / 100 : num);
+    }
+
+    let depositAmount: Prisma.Decimal | undefined;
+    if (data.depositAmount !== undefined) {
+      depositAmount = new Prisma.Decimal(data.depositAmount);
+    } else if (data.securityDeposit !== undefined) {
+      const num = Number(data.securityDeposit);
+      depositAmount = new Prisma.Decimal(num > 1000 ? num / 100 : num);
+    }
+
     const updated = await this.prisma.vehicle.update({
       where: { id },
       data: {
-        brand: data.brand?.trim(),
-        model: data.model?.trim(),
+        brand,
+        model,
         year: data.year ? Number(data.year) : undefined,
-        plate: data.plate ? data.plate.trim().toUpperCase() : undefined,
+        plate,
         vin: data.vin !== undefined ? (data.vin ? data.vin.trim().toUpperCase() : null) : undefined,
         color: data.color?.trim(),
         categoryId: data.categoryId,
         vehicleType: data.vehicleType,
         transmission: data.transmission,
         fuelType: data.fuelType,
-        passengers: data.passengers ? Number(data.passengers) : undefined,
+        passengers: data.passengers ? Number(data.passengers) : (data.seats ? Number(data.seats) : undefined),
         luggage: data.luggage ? Number(data.luggage) : undefined,
         doors: data.doors ? Number(data.doors) : undefined,
         airConditioning: data.airConditioning,
         odometerKm: data.odometerKm !== undefined ? Number(data.odometerKm) : undefined,
-        dailyRate: data.dailyRate ? new Prisma.Decimal(data.dailyRate) : undefined,
+        dailyRate,
         weeklyRate: data.weeklyRate ? new Prisma.Decimal(data.weeklyRate) : undefined,
         monthlyRate: data.monthlyRate ? new Prisma.Decimal(data.monthlyRate) : undefined,
-        depositAmount: data.depositAmount ? new Prisma.Decimal(data.depositAmount) : undefined,
+        depositAmount,
         kmIncludedPerDay: data.kmIncludedPerDay !== undefined ? (data.kmIncludedPerDay ? Number(data.kmIncludedPerDay) : null) : undefined,
         extraKmFee: data.extraKmFee ? new Prisma.Decimal(data.extraKmFee) : undefined,
         description: data.description,
         rentalConditions: data.rentalConditions,
         minDriverAge: data.minDriverAge ? Number(data.minDriverAge) : undefined,
         internalNotes: data.internalNotes,
-        operationalStatus: data.operationalStatus,
+        operationalStatus,
         featured: data.featured,
         publicVisible: data.publicVisible,
         currentLocationId: data.currentLocationId,

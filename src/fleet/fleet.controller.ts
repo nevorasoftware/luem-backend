@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -125,6 +126,39 @@ export class FleetController {
   @Roles(UserRole.ADMIN)
   @Delete('admin/vehicles/:id')
   async deleteVehicle(@CurrentUser('id') adminId: string, @Param('id') id: string) {
+    return this.fleetService.deleteVehicle(id, adminId);
+  }
+
+  // Aliases para máxima compatibilidad con frontend (/api/fleet/vehicles)
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('vehicles')
+  async createVehicleAlias(@CurrentUser('id') adminId: string, @Body() body: any) {
+    return this.fleetService.createVehicle(body, adminId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Put('vehicles/:id')
+  async updateVehicleAlias(
+    @CurrentUser('id') adminId: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.fleetService.updateVehicle(id, body, adminId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Patch('vehicles/:id')
+  async patchVehicleAlias(
+    @CurrentUser('id') adminId: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.fleetService.updateVehicle(id, body, adminId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete('vehicles/:id')
+  async deleteVehicleAlias(@CurrentUser('id') adminId: string, @Param('id') id: string) {
     return this.fleetService.deleteVehicle(id, adminId);
   }
 

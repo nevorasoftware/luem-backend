@@ -167,4 +167,87 @@ export class CustomersService {
 
     return updated;
   }
+
+  async createCustomer(
+    data: {
+      fullName: string;
+      dui: string;
+      email: string;
+      phone: string;
+      address?: string;
+      licenseNumber?: string;
+      notes?: string;
+    },
+    adminId: string,
+  ) {
+    const customer = await this.findOrCreateCustomer({
+      fullName: data.fullName,
+      dui: data.dui,
+      email: data.email,
+      phone: data.phone,
+      address: data.address || '',
+      licenseNumber: data.licenseNumber,
+    });
+
+    if (data.notes) {
+      await this.prisma.customer.update({
+        where: { id: customer.id },
+        data: { notes: data.notes },
+      });
+    }
+
+    await this.audit.log({
+      actorType: 'USUARIO',
+      actorUserId: adminId,
+      action: 'CREATE_CUSTOMER',
+      entityType: 'Customer',
+      entityId: customer.id,
+      summary: `Cliente creado: ${customer.fullName} (${customer.dui})`,
+    });
+
+    return customer;
+  }
+
+  async deleteCustomer(id: string, adminId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            reservations: true,
+            requests: true,
+          },
+        },
+      },
+    });
+
+    if (!customer) throw new NotFoundException('Cliente no encontrado.');
+
+    if (customer._count.reservations > 0 || customer._count.requests > 0) {
+      const updated = await this.prisma.customer.update({
+        where: { id },
+        data: { active: false, blocked: true, blockedReason: 'Inactivado por administración' },
+      });
+      await this.audit.log({
+        actorType: 'USUARIO',
+        actorUserId: adminId,
+        action: 'DEACTIVATE_CUSTOMER',
+        entityType: 'Customer',
+        entityId: id,
+        summary: `Cliente ${customer.fullName} inactivado (con reservas previas)`,
+      });
+      return { success: true, message: 'Cliente inactivado (conservando su historial)' };
+    }
+
+    await this.prisma.customer.delete({ where: { id } });
+    await this.audit.log({
+      actorType: 'USUARIO',
+      actorUserId: adminId,
+      action: 'DELETE_CUSTOMER',
+      entityType: 'Customer',
+      entityId: id,
+      summary: `Cliente ${customer.fullName} eliminado del sistema`,
+    });
+    return { success: true, message: 'Cliente eliminado correctamente' };
+  }
 }

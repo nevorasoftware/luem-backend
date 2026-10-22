@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -71,4 +72,26 @@ export class MaintenanceController {
   ) {
     return this.maintenanceService.completeMaintenance(id, notes, adminId, adminName);
   }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Put(':id/cancel')
+  async cancel(
+    @Param('id') id: string,
+    @Body('notes') notes: string,
+    @CurrentUser('id') adminId: string,
+    @CurrentUser('fullName') adminName: string,
+  ) {
+    return this.maintenanceService.cancelMaintenance(id, notes, adminId, adminName);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Delete(':id')
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @CurrentUser('fullName') adminName: string,
+  ) {
+    return this.maintenanceService.cancelMaintenance(id, 'Eliminado/Cancelado por administrador', adminId, adminName);
+  }
 }
+

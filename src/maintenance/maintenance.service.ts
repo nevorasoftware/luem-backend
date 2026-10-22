@@ -190,4 +190,57 @@ export class MaintenanceService {
 
     return { success: true, message: 'Mantenimiento marcado como completado y vehículo disponible.' };
   }
+
+  async cancelMaintenance(id: string, notes?: string, adminId?: string, adminName?: string) {
+    const m = await this.prisma.maintenance.findUnique({
+      where: { id },
+      include: { vehicle: true },
+    });
+    if (!m) throw new NotFoundException('Mantenimiento no encontrado.');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.maintenance.update({
+        where: { id },
+        data: {
+          status: 'CANCELADO',
+          notes: notes ? `${m.notes ? m.notes + '\n' : ''}CANCELADO: ${notes}` : m.notes,
+        },
+      });
+
+      await tx.vehicleBlock.updateMany({
+        where: { maintenanceId: id },
+        data: { active: false },
+      });
+
+      const otherActive = await tx.maintenance.count({
+        where: {
+          vehicleId: m.vehicleId,
+          status: { in: ['PROGRAMADO', 'EN_PROCESO'] },
+          id: { not: id },
+        },
+      });
+
+      if (otherActive === 0) {
+        await tx.vehicle.update({
+          where: { id: m.vehicleId },
+          data: { operationalStatus: 'OPERATIVO' },
+        });
+      }
+    });
+
+    if (adminId) {
+      await this.audit.log({
+        actorType: 'USUARIO',
+        actorUserId: adminId,
+        actorName: adminName,
+        action: 'CANCEL_MAINTENANCE',
+        entityType: 'Maintenance',
+        entityId: id,
+        summary: `Mantenimiento cancelado para vehículo ${m.vehicle.plate}`,
+      });
+    }
+
+    return { success: true, message: 'Mantenimiento cancelado exitosamente.' };
+  }
 }
+

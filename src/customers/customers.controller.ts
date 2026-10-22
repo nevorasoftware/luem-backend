@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Post,
   Put,
   Query,
   UseGuards,
@@ -32,6 +34,15 @@ export class CustomersController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post()
+  async create(
+    @CurrentUser('id') adminId: string,
+    @Body() body: any,
+  ) {
+    return this.customersService.createCustomer(body, adminId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Put(':id')
   async update(
     @CurrentUser('id') adminId: string,
@@ -39,5 +50,30 @@ export class CustomersController {
     @Body() body: any,
   ) {
     return this.customersService.updateCustomer(id, body, adminId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post(':id/block')
+  async toggleBlock(
+    @CurrentUser('id') adminId: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const isBlocked = body.isBlocked !== undefined ? body.isBlocked : body.blocked;
+    const blockReason = body.blockReason || body.blockedReason;
+    return this.customersService.updateCustomer(
+      id,
+      { blocked: Boolean(isBlocked), blockedReason: blockReason },
+      adminId,
+    );
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete(':id')
+  async delete(
+    @CurrentUser('id') adminId: string,
+    @Param('id') id: string,
+  ) {
+    return this.customersService.deleteCustomer(id, adminId);
   }
 }
