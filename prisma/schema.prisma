@@ -1,0 +1,870 @@
+// =============================================================================
+// LUXEM RENT A CAR — Esquema de base de datos (PostgreSQL)
+// Todas las fechas se almacenan como timestamptz (UTC) y se presentan en
+// la zona horaria America/El_Salvador. Los importes monetarios usan
+// Decimal(12,2) en USD.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+// Usuarios, sesiones y configuración
+// ----------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  OPERADOR
+  FINANZAS
+}
+
+model User {
+  id                  String    @id @default(uuid()) @db.Uuid
+  email               String    @unique
+  fullName            String
+  passwordHash        String
+  role                UserRole
+  active              Boolean   @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime? @db.Timestamptz(3)
+  lastLoginAt         DateTime? @db.Timestamptz(3)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(3)
+
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  lastSeenAt DateTime  @default(now()) @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/// Configuración de negocio editable desde el panel (clave -> JSON validado).
+model Setting {
+  key         String   @id
+  value       Json
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("settings")
+}
+
+/// Contadores atómicos (códigos de solicitud por año, etc.).
+model Counter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("counters")
+}
+
+// ----------------------------------------------------------------------------
+// Archivos
+// ----------------------------------------------------------------------------
+
+enum FileVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+model StoredFile {
+  id               String         @id @default(uuid()) @db.Uuid
+  storageKey       String         @unique
+  visibility       FileVisibility
+  mimeType         String
+  sizeBytes        Int
+  sha256           String
+  originalName     String
+  width            Int?
+  height           Int?
+  uploadedByUserId String?        @db.Uuid
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+
+  vehiclePhoto          VehiclePhoto?
+  customerDocument      CustomerDocument?
+  maintenanceAttachment MaintenanceAttachment?
+  inspectionPhoto       InspectionPhoto?
+  paymentReceipts       PaymentTransaction[]
+  inspectionSignatures  Inspection[]
+
+  @@map("stored_files")
+}
+
+// ----------------------------------------------------------------------------
+// Flota
+// ----------------------------------------------------------------------------
+
+enum Transmission {
+  AUTOMATICA
+  MANUAL
+}
+
+enum FuelType {
+  GASOLINA
+  DIESEL
+  HIBRIDO
+  ELECTRICO
+  GAS_LP
+}
+
+enum VehicleType {
+  SEDAN
+  HATCHBACK
+  SUV
+  CROSSOVER
+  PICKUP
+  VAN
+  MINIVAN
+  COUPE
+  CONVERTIBLE
+}
+
+/// Estado operativo editable. La disponibilidad comercial se calcula a partir
+/// de este estado + bloqueos (reservas, retenciones y mantenimientos).
+enum VehicleOperationalStatus {
+  OPERATIVO
+  EN_MANTENIMIENTO
+  FUERA_DE_SERVICIO
+  INACTIVO
+}
+
+model Category {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String   @unique
+  slug             String   @unique
+  description      String?
+  sortOrder        Int      @default(0)
+  active           Boolean  @default(true)
+  dailyRate        Decimal? @db.Decimal(12, 2)
+  weeklyRate       Decimal? @db.Decimal(12, 2)
+  monthlyRate      Decimal? @db.Decimal(12, 2)
+  depositAmount    Decimal? @db.Decimal(12, 2)
+  kmIncludedPerDay Int?
+  extraKmFee       Decimal? @db.Decimal(12, 2)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+
+  vehicles Vehicle[]
+  seasons  Season[]
+
+  @@map("categories")
+}
+
+model Feature {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  icon      String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  vehicles Vehicle[]
+
+  @@map("features")
+}
+
+model Location {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String   @unique
+  address       String?
+  notes         String?
+  pickupEnabled Boolean  @default(true)
+  returnEnabled Boolean  @default(true)
+  fee           Decimal  @default(0) @db.Decimal(12, 2)
+  active        Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  vehicles           Vehicle[]
+  pickupRequests     BookingRequest[] @relation("RequestPickupLocation")
+  returnRequests     BookingRequest[] @relation("RequestReturnLocation")
+  pickupReservations Reservation[]    @relation("ReservationPickupLocation")
+  returnReservations Reservation[]    @relation("ReservationReturnLocation")
+
+  @@map("locations")
+}
+
+model Vehicle {
+  id                String                   @id @default(uuid()) @db.Uuid
+  slug              String                   @unique
+  brand             String
+  model             String
+  year              Int
+  plate             String                   @unique
+  vin               String?                  @unique
+  color             String?
+  categoryId        String                   @db.Uuid
+  vehicleType       VehicleType
+  transmission      Transmission
+  fuelType          FuelType
+  passengers        Int
+  luggage           Int
+  doors             Int?
+  airConditioning   Boolean                  @default(true)
+  odometerKm        Int                      @default(0)
+  dailyRate         Decimal                  @db.Decimal(12, 2)
+  weeklyRate        Decimal?                 @db.Decimal(12, 2)
+  monthlyRate       Decimal?                 @db.Decimal(12, 2)
+  depositAmount     Decimal?                 @db.Decimal(12, 2)
+  kmIncludedPerDay  Int?
+  extraKmFee        Decimal?                 @db.Decimal(12, 2)
+  description       String?
+  rentalConditions  String?
+  minDriverAge      Int?
+  internalNotes     String?
+  operationalStatus VehicleOperationalStatus @default(OPERATIVO)
+  featured          Boolean                  @default(false)
+  publicVisible     Boolean                  @default(true)
+  currentLocationId String?                  @db.Uuid
+  deletedAt         DateTime?                @db.Timestamptz(3)
+  createdAt         DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                 @updatedAt @db.Timestamptz(3)
+
+  category        Category         @relation(fields: [categoryId], references: [id])
+  currentLocation Location?        @relation(fields: [currentLocationId], references: [id])
+  features        Feature[]
+  photos          VehiclePhoto[]
+  blocks          VehicleBlock[]
+  requests        BookingRequest[]
+  reservations    Reservation[]
+  maintenances    Maintenance[]
+
+  @@index([categoryId])
+  @@index([operationalStatus])
+  @@map("vehicles")
+}
+
+model VehiclePhoto {
+  id        String   @id @default(uuid()) @db.Uuid
+  vehicleId String   @db.Uuid
+  fileId    String   @unique @db.Uuid
+  sortOrder Int      @default(0)
+  alt       String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  vehicle Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  file    StoredFile @relation(fields: [fileId], references: [id])
+
+  @@index([vehicleId, sortOrder])
+  @@map("vehicle_photos")
+}
+
+enum BlockKind {
+  RESERVA
+  RETENCION
+  MANTENIMIENTO
+}
+
+/// Bloqueos de calendario de un vehículo. Una restricción EXCLUDE (ver
+/// migración) impide que dos bloqueos activos de tipo RESERVA/RETENCION se
+/// solapen para el mismo vehículo, incluso ante solicitudes concurrentes.
+model VehicleBlock {
+  id            String    @id @default(uuid()) @db.Uuid
+  vehicleId     String    @db.Uuid
+  kind          BlockKind
+  startAt       DateTime  @db.Timestamptz(3)
+  endAt         DateTime  @db.Timestamptz(3)
+  active        Boolean   @default(true)
+  expiresAt     DateTime? @db.Timestamptz(3)
+  reservationId String?   @unique @db.Uuid
+  requestId     String?   @db.Uuid
+  maintenanceId String?   @unique @db.Uuid
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  vehicle     Vehicle         @relation(fields: [vehicleId], references: [id])
+  reservation Reservation?    @relation(fields: [reservationId], references: [id])
+  request     BookingRequest? @relation(fields: [requestId], references: [id])
+  maintenance Maintenance?    @relation(fields: [maintenanceId], references: [id])
+
+  @@index([vehicleId, startAt, endAt])
+  @@index([kind, active, expiresAt])
+  @@map("vehicle_blocks")
+}
+
+// ----------------------------------------------------------------------------
+// Tarifas y extras
+// ----------------------------------------------------------------------------
+
+enum ExtraPricing {
+  POR_DIA
+  POR_RENTA
+}
+
+model Extra {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique
+  name        String
+  description String?
+  pricingType ExtraPricing
+  price       Decimal      @db.Decimal(12, 2)
+  maxQuantity Int          @default(1)
+  active      Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@map("extras")
+}
+
+enum AdjustmentType {
+  PORCENTAJE
+  MONTO_DIARIO
+}
+
+model Season {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String
+  startDate      DateTime       @db.Date
+  endDate        DateTime       @db.Date
+  adjustmentType AdjustmentType
+  value          Decimal        @db.Decimal(12, 2)
+  categoryId     String?        @db.Uuid
+  active         Boolean        @default(true)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
+
+  category Category? @relation(fields: [categoryId], references: [id])
+
+  @@map("seasons")
+}
+
+enum DiscountType {
+  PORCENTAJE
+  MONTO_FIJO
+}
+
+model Discount {
+  id         String       @id @default(uuid()) @db.Uuid
+  code       String       @unique
+  name       String
+  type       DiscountType
+  value      Decimal      @db.Decimal(12, 2)
+  minDays    Int?
+  validFrom  DateTime?    @db.Timestamptz(3)
+  validTo    DateTime?    @db.Timestamptz(3)
+  /// Si es true, el cliente puede usar el código en el sitio público.
+  publicCode Boolean      @default(false)
+  maxUses    Int?
+  usedCount  Int          @default(0)
+  active     Boolean      @default(true)
+  createdAt  DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@map("discounts")
+}
+
+// ----------------------------------------------------------------------------
+// Clientes y documentos
+// ----------------------------------------------------------------------------
+
+model Customer {
+  id             String    @id @default(uuid()) @db.Uuid
+  fullName       String
+  /// DUI normalizado con formato ########-#
+  dui            String    @unique
+  email          String
+  phone          String
+  address        String
+  licenseNumber  String?
+  licenseExpiry  DateTime? @db.Date
+  notes          String?
+  active         Boolean   @default(true)
+  /// Si es true, no se aceptan nuevas solicitudes del cliente.
+  blocked        Boolean   @default(false)
+  blockedReason  String?
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  documents    CustomerDocument[]
+  requests     BookingRequest[]
+  reservations Reservation[]
+
+  @@index([email])
+  @@index([phone])
+  @@map("customers")
+}
+
+enum DocumentType {
+  DUI
+  LICENCIA
+  COMPROBANTE_DOMICILIO
+  OTRO
+}
+
+enum DocumentStatus {
+  RECIBIDO
+  ACEPTADO
+  RECHAZADO
+  REEMPLAZADO
+}
+
+model CustomerDocument {
+  id           String         @id @default(uuid()) @db.Uuid
+  customerId   String         @db.Uuid
+  requestId    String?        @db.Uuid
+  type         DocumentType
+  fileId       String         @unique @db.Uuid
+  status       DocumentStatus @default(RECIBIDO)
+  reviewNote   String?
+  reviewedById String?        @db.Uuid
+  reviewedAt   DateTime?      @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+
+  customer Customer        @relation(fields: [customerId], references: [id])
+  request  BookingRequest? @relation(fields: [requestId], references: [id])
+  file     StoredFile      @relation(fields: [fileId], references: [id])
+
+  @@index([customerId])
+  @@index([requestId])
+  @@map("customer_documents")
+}
+
+// ----------------------------------------------------------------------------
+// Solicitudes, reservas y pagos
+// ----------------------------------------------------------------------------
+
+enum RequestStatus {
+  PENDIENTE_REVISION
+  DOCUMENTACION_INCOMPLETA
+  APROBADA
+  RECHAZADA
+  CANCELADA
+  EXPIRADA
+}
+
+enum ReservationStatus {
+  PENDIENTE_PAGO
+  CONFIRMADA
+  EN_CURSO
+  FINALIZADA
+  CANCELADA
+  NO_PRESENTADO
+}
+
+enum PaymentStatus {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+  RECHAZADO
+  REEMBOLSO_PARCIAL
+  REEMBOLSADO
+}
+
+model BookingRequest {
+  id                String        @id @default(uuid()) @db.Uuid
+  code              String        @unique
+  status            RequestStatus @default(PENDIENTE_REVISION)
+  customerId        String        @db.Uuid
+  vehicleId         String        @db.Uuid
+  pickupAt          DateTime      @db.Timestamptz(3)
+  returnAt          DateTime      @db.Timestamptz(3)
+  pickupLocationId  String?       @db.Uuid
+  returnLocationId  String?       @db.Uuid
+  /// Datos personales tal como los envió el solicitante.
+  applicant         Json
+  /// Extras seleccionados [{ extraId, quantity }].
+  extras            Json          @default("[]")
+  discountCode      String?
+  /// Cotización preliminar calculada por el servidor al recibir la solicitud.
+  quote             Json
+  estimatedTotal    Decimal       @db.Decimal(12, 2)
+  customerNotes     String?
+  privacyAcceptedAt DateTime      @db.Timestamptz(3)
+  submittedIp       String?
+  infoRequestType   String?
+  infoRequestMessage String?
+  infoRequestDocs   DocumentType[]
+  rejectionReason   String?
+  cancelReason      String?
+  reviewedById      String?       @db.Uuid
+  reviewedAt        DateTime?     @db.Timestamptz(3)
+  expiresAt         DateTime?     @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+
+  customer       Customer           @relation(fields: [customerId], references: [id])
+  vehicle        Vehicle            @relation(fields: [vehicleId], references: [id])
+  pickupLocation Location?          @relation("RequestPickupLocation", fields: [pickupLocationId], references: [id])
+  returnLocation Location?          @relation("RequestReturnLocation", fields: [returnLocationId], references: [id])
+  reservation    Reservation?
+  documents      CustomerDocument[]
+  events         RequestEvent[]
+  accessTokens   AccessToken[]
+  blocks         VehicleBlock[]
+  emails         EmailLog[]
+
+  @@index([status, createdAt])
+  @@index([customerId])
+  @@index([vehicleId])
+  @@map("booking_requests")
+}
+
+model Reservation {
+  id               String            @id @default(uuid()) @db.Uuid
+  code             String            @unique
+  requestId        String            @unique @db.Uuid
+  customerId       String            @db.Uuid
+  vehicleId        String            @db.Uuid
+  pickupAt         DateTime          @db.Timestamptz(3)
+  returnAt         DateTime          @db.Timestamptz(3)
+  pickupLocationId String?           @db.Uuid
+  returnLocationId String?           @db.Uuid
+  status           ReservationStatus
+  paymentStatus    PaymentStatus     @default(PENDIENTE)
+  /// Snapshot de precios: se conserva aunque cambien las tarifas.
+  dailyRate        Decimal           @db.Decimal(12, 2)
+  billableDays     Int
+  baseAmount       Decimal           @db.Decimal(12, 2)
+  extrasTotal      Decimal           @db.Decimal(12, 2)
+  feesTotal        Decimal           @db.Decimal(12, 2)
+  discountTotal    Decimal           @db.Decimal(12, 2)
+  taxTotal         Decimal           @db.Decimal(12, 2)
+  chargesTotal     Decimal           @default(0) @db.Decimal(12, 2)
+  total            Decimal           @db.Decimal(12, 2)
+  depositRequired  Decimal?          @db.Decimal(12, 2)
+  securityDeposit  Decimal?          @db.Decimal(12, 2)
+  amountPaid       Decimal           @default(0) @db.Decimal(12, 2)
+  balanceDue       Decimal           @db.Decimal(12, 2)
+  quote            Json
+  paymentDueAt     DateTime?         @db.Timestamptz(3)
+  approvedById     String            @db.Uuid
+  approvedAt       DateTime          @db.Timestamptz(3)
+  confirmedAt      DateTime?         @db.Timestamptz(3)
+  pickedUpAt       DateTime?         @db.Timestamptz(3)
+  returnedAt       DateTime?         @db.Timestamptz(3)
+  cancelledAt      DateTime?         @db.Timestamptz(3)
+  cancelReason     String?
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+
+  request        BookingRequest       @relation(fields: [requestId], references: [id])
+  customer       Customer             @relation(fields: [customerId], references: [id])
+  vehicle        Vehicle              @relation(fields: [vehicleId], references: [id])
+  pickupLocation Location?            @relation("ReservationPickupLocation", fields: [pickupLocationId], references: [id])
+  returnLocation Location?            @relation("ReservationReturnLocation", fields: [returnLocationId], references: [id])
+  block          VehicleBlock?
+  payments       PaymentTransaction[]
+  charges        ReservationCharge[]
+  inspections    Inspection[]
+
+  @@index([vehicleId, pickupAt])
+  @@index([status])
+  @@index([customerId])
+  @@map("reservations")
+}
+
+enum PaymentType {
+  ANTICIPO
+  PAGO_PARCIAL
+  PAGO_COMPLETO
+  REEMBOLSO
+  AJUSTE
+}
+
+enum PaymentTxStatus {
+  REGISTRADO
+  RECHAZADO
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  TRANSFERENCIA
+  DEPOSITO_BANCARIO
+  TARJETA
+  PASARELA
+  OTRO
+}
+
+/// Movimientos de pago. Nunca se eliminan: las correcciones se registran
+/// como movimientos de AJUSTE que referencian el movimiento original.
+model PaymentTransaction {
+  id                   String          @id @default(uuid()) @db.Uuid
+  reservationId        String          @db.Uuid
+  type                 PaymentType
+  status               PaymentTxStatus @default(REGISTRADO)
+  method               PaymentMethod
+  /// Positivo para pagos y reembolsos; con signo para ajustes.
+  amount               Decimal         @db.Decimal(12, 2)
+  paidAt               DateTime        @db.Timestamptz(3)
+  reference            String?
+  notes                String?
+  receiptFileId        String?         @db.Uuid
+  adjustsTransactionId String?         @db.Uuid
+  gatewayProvider      String?
+  gatewayReference     String?
+  createdById          String          @db.Uuid
+  createdAt            DateTime        @default(now()) @db.Timestamptz(3)
+
+  reservation  Reservation          @relation(fields: [reservationId], references: [id])
+  receiptFile  StoredFile?          @relation(fields: [receiptFileId], references: [id])
+  adjusts      PaymentTransaction?  @relation("PaymentAdjustments", fields: [adjustsTransactionId], references: [id])
+  adjustments  PaymentTransaction[] @relation("PaymentAdjustments")
+
+  @@index([reservationId])
+  @@index([paidAt])
+  @@map("payment_transactions")
+}
+
+enum ChargeType {
+  KM_ADICIONAL
+  COMBUSTIBLE
+  DANOS
+  DEVOLUCION_TARDIA
+  LIMPIEZA
+  OTRO
+}
+
+model ReservationCharge {
+  id            String     @id @default(uuid()) @db.Uuid
+  reservationId String     @db.Uuid
+  type          ChargeType
+  description   String
+  amount        Decimal    @db.Decimal(12, 2)
+  createdById   String     @db.Uuid
+  voidedAt      DateTime?  @db.Timestamptz(3)
+  voidReason    String?
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+
+  @@index([reservationId])
+  @@map("reservation_charges")
+}
+
+enum InspectionType {
+  ENTREGA
+  DEVOLUCION
+}
+
+model Inspection {
+  id                String         @id @default(uuid()) @db.Uuid
+  reservationId     String         @db.Uuid
+  type              InspectionType
+  performedAt       DateTime       @db.Timestamptz(3)
+  odometerKm        Int
+  /// Nivel de combustible en octavos (0 = vacío, 8 = lleno).
+  fuelLevel         Int
+  exteriorCondition String
+  interiorCondition String
+  accessories       String[]
+  damages           String?
+  notes             String?
+  customerAccepted  Boolean        @default(false)
+  customerName      String?
+  signatureFileId   String?        @db.Uuid
+  performedById     String         @db.Uuid
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+
+  reservation   Reservation       @relation(fields: [reservationId], references: [id])
+  signatureFile StoredFile?       @relation(fields: [signatureFileId], references: [id])
+  photos        InspectionPhoto[]
+
+  @@unique([reservationId, type])
+  @@map("inspections")
+}
+
+model InspectionPhoto {
+  id           String   @id @default(uuid()) @db.Uuid
+  inspectionId String   @db.Uuid
+  fileId       String   @unique @db.Uuid
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  file       StoredFile @relation(fields: [fileId], references: [id])
+
+  @@map("inspection_photos")
+}
+
+enum EventKind {
+  ESTADO_SOLICITUD
+  ESTADO_RESERVA
+  ESTADO_PAGO
+  NOTA
+  CORREO
+  DOCUMENTO
+  ASIGNACION
+  MODIFICACION
+  ENTREGA
+  DEVOLUCION
+  PAGO
+  CARGO
+  SISTEMA
+}
+
+enum ActorType {
+  USUARIO
+  CLIENTE
+  SISTEMA
+}
+
+/// Historial de la solicitud y su reserva asociada.
+model RequestEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  requestId   String    @db.Uuid
+  kind        EventKind
+  fromStatus  String?
+  toStatus    String?
+  message     String?
+  internal    Boolean   @default(true)
+  actorType   ActorType
+  actorUserId String?   @db.Uuid
+  actorName   String?
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  request BookingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("request_events")
+}
+
+/// Tokens de acceso público (se guarda sólo el hash SHA-256).
+model AccessToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  requestId  String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  lastUsedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  request BookingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("access_tokens")
+}
+
+// ----------------------------------------------------------------------------
+// Mantenimiento
+// ----------------------------------------------------------------------------
+
+enum MaintenanceType {
+  PREVENTIVO
+  CORRECTIVO
+  CAMBIO_ACEITE
+  FRENOS
+  NEUMATICOS
+  BATERIA
+  INSPECCION
+  REPARACION
+  OTRO
+}
+
+enum MaintenanceStatus {
+  PROGRAMADO
+  EN_PROCESO
+  COMPLETADO
+  CANCELADO
+}
+
+model Maintenance {
+  id                 String            @id @default(uuid()) @db.Uuid
+  vehicleId          String            @db.Uuid
+  type               MaintenanceType
+  status             MaintenanceStatus @default(PROGRAMADO)
+  startAt            DateTime          @db.Timestamptz(3)
+  endAt              DateTime?         @db.Timestamptz(3)
+  odometerKm         Int?
+  description        String
+  provider           String?
+  cost               Decimal?          @db.Decimal(12, 2)
+  invoiceRef         String?
+  nextDueDate        DateTime?         @db.Date
+  nextDueKm          Int?
+  blocksAvailability Boolean           @default(true)
+  notes              String?
+  conflictResolution String?
+  conflictResolvedAt DateTime?         @db.Timestamptz(3)
+  createdById        String            @db.Uuid
+  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
+
+  vehicle     Vehicle                 @relation(fields: [vehicleId], references: [id])
+  block       VehicleBlock?
+  attachments MaintenanceAttachment[]
+
+  @@index([vehicleId, startAt])
+  @@index([nextDueDate])
+  @@map("maintenances")
+}
+
+model MaintenanceAttachment {
+  id            String   @id @default(uuid()) @db.Uuid
+  maintenanceId String   @db.Uuid
+  fileId        String   @unique @db.Uuid
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  maintenance Maintenance @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  file        StoredFile  @relation(fields: [fileId], references: [id])
+
+  @@map("maintenance_attachments")
+}
+
+// ----------------------------------------------------------------------------
+// Correos y auditoría
+// ----------------------------------------------------------------------------
+
+enum EmailStatus {
+  PENDIENTE
+  ENVIADO
+  FALLIDO
+}
+
+model EmailLog {
+  id            String      @id @default(uuid()) @db.Uuid
+  to            String
+  subject       String
+  template      String
+  html          String
+  text          String
+  status        EmailStatus @default(PENDIENTE)
+  attempts      Int         @default(0)
+  lastError     String?
+  requestId     String?     @db.Uuid
+  nextAttemptAt DateTime    @default(now()) @db.Timestamptz(3)
+  sentAt        DateTime?   @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+
+  request BookingRequest? @relation(fields: [requestId], references: [id])
+
+  @@index([status, nextAttemptAt])
+  @@index([requestId])
+  @@map("email_logs")
+}
+
+model AuditLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  actorType   ActorType
+  actorUserId String?   @db.Uuid
+  actorName   String?
+  action      String
+  entityType  String
+  entityId    String?
+  summary     String
+  metadata    Json?
+  ip          String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
