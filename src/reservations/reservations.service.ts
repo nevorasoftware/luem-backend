@@ -420,7 +420,7 @@ export class ReservationsService {
       // Crear fotos de inspección
       if (savedPhotos.length > 0) {
         await tx.inspectionPhoto.createMany({
-          data: savedPhotos.map((p) => ({
+          data: savedPhotos.map((p: any) => ({
             inspectionId: inspection.id,
             fileId: p.id,
           })),
@@ -523,7 +523,7 @@ export class ReservationsService {
 
       if (savedPhotos.length > 0) {
         await tx.inspectionPhoto.createMany({
-          data: savedPhotos.map((p) => ({
+          data: savedPhotos.map((p: any) => ({
             inspectionId: inspection.id,
             fileId: p.id,
           })),
