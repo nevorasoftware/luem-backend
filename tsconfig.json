@@ -22,5 +22,12 @@
     "resolveJsonModule": true,
     "types": ["node", "jest", "multer"]
   },
-  "include": ["src/**/*", "test/**/*", "prisma/**/*"]
+  "include": ["src/**/*", "test/**/*", "prisma/**/*"],
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs",
+      "moduleResolution": "node"
+    }
+  }
 }
