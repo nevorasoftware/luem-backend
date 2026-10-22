@@ -10,6 +10,7 @@ import * as path from 'path';
 import sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
 import { sha256 } from '../common/crypto';
+import { Readable } from 'stream';
 import { StorageDriver } from './storage.interface';
 import { STORAGE_DRIVER_TOKEN } from './storage.constants';
 
@@ -116,12 +117,16 @@ export class StorageService {
     const key = `${folder}/${new Date().getFullYear()}/${randomUUID()}${ext}`;
     const hash = sha256(finalBuffer);
 
-    await this.driver.save({
-      key,
-      buffer: finalBuffer,
-      mimeType: validatedMime,
-      visibility: options.visibility,
-    });
+    try {
+      await this.driver.save({
+        key,
+        buffer: finalBuffer,
+        mimeType: validatedMime,
+        visibility: options.visibility,
+      });
+    } catch (err) {
+      // Si el driver de disco falla en contenedor sin volumen, el archivo se conserva intacto en PostgreSQL
+    }
 
     const storedFile = await this.prisma.storedFile.create({
       data: {
@@ -134,6 +139,7 @@ export class StorageService {
         width,
         height,
         uploadedByUserId: options.uploadedByUserId,
+        content: finalBuffer,
       },
     });
 
@@ -143,6 +149,10 @@ export class StorageService {
   async getFileStream(fileId: string) {
     const file = await this.prisma.storedFile.findUnique({ where: { id: fileId } });
     if (!file) throw new NotFoundException('Archivo no encontrado.');
+    if (file.content) {
+      const stream = Readable.from(file.content);
+      return { file, stream };
+    }
     const stream = await this.driver.getStream(file.storageKey);
     return { file, stream };
   }
@@ -150,6 +160,9 @@ export class StorageService {
   async getFileBuffer(fileId: string) {
     const file = await this.prisma.storedFile.findUnique({ where: { id: fileId } });
     if (!file) throw new NotFoundException('Archivo no encontrado.');
+    if (file.content) {
+      return { file, buffer: file.content };
+    }
     const buffer = await this.driver.getBuffer(file.storageKey);
     return { file, buffer };
   }

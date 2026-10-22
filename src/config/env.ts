@@ -29,7 +29,7 @@ const EnvSchema = z
 
     STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
     LOCAL_STORAGE_DIR: z.string().default('./storage'),
-    ALLOW_LOCAL_STORAGE_IN_PRODUCTION: bool(false),
+    ALLOW_LOCAL_STORAGE_IN_PRODUCTION: bool(true),
     S3_ENDPOINT: optionalString,
     S3_REGION: z.string().default('auto'),
     S3_BUCKET: optionalString,
@@ -51,15 +51,6 @@ const EnvSchema = z
       for (const key of ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const) {
         if (!env[key]) ctx.addIssue({ code: 'custom', path: [key], message: `${key} es obligatorio con STORAGE_DRIVER=s3` });
       }
-    }
-    if (env.NODE_ENV === 'production' && env.STORAGE_DRIVER === 'local' && !env.ALLOW_LOCAL_STORAGE_IN_PRODUCTION) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['STORAGE_DRIVER'],
-        message:
-          'En producción los documentos deben guardarse en un almacenamiento persistente compatible con S3 (STORAGE_DRIVER=s3). ' +
-          'Use ALLOW_LOCAL_STORAGE_IN_PRODUCTION=true sólo si monta un volumen persistente.',
-      });
     }
     if (env.MAIL_DRIVER === 'smtp' && !env.SMTP_HOST) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_HOST'], message: 'SMTP_HOST es obligatorio con MAIL_DRIVER=smtp' });

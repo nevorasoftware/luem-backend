@@ -13,12 +13,16 @@ export class LocalStorageDriver implements StorageDriver {
   constructor() {
     const env = loadEnv();
     this.baseDir = path.resolve(process.cwd(), env.LOCAL_STORAGE_DIR);
-    this.ensureDir(this.baseDir);
+    this.ensureDir(this.baseDir).catch(() => null);
   }
 
   private async ensureDir(dir: string) {
-    if (!existsSync(dir)) {
-      await fs.mkdir(dir, { recursive: true });
+    try {
+      if (!existsSync(dir)) {
+        await fs.mkdir(dir, { recursive: true });
+      }
+    } catch {
+      // ignore
     }
   }
 

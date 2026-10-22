@@ -97,6 +97,7 @@ model StoredFile {
   width            Int?
   height           Int?
   uploadedByUserId String?        @db.Uuid
+  content          Bytes?
   createdAt        DateTime       @default(now()) @db.Timestamptz(3)
 
   vehiclePhoto          VehiclePhoto?
