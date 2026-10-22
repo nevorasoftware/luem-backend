@@ -78,13 +78,16 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   }
   const e = parsed.data;
   const isProduction = e.NODE_ENV === 'production';
+  const origins = (e.CORS_ORIGINS ?? e.FRONTEND_URL)
+    .split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  origins.push('https://luem.up.railway.app', 'http://localhost:3000');
+
   const env: Env = {
     ...e,
     FRONTEND_URL: e.FRONTEND_URL.replace(/\/+$/, ''),
-    corsOrigins: (e.CORS_ORIGINS ?? e.FRONTEND_URL)
-      .split(',')
-      .map((o) => o.trim().replace(/\/+$/, ''))
-      .filter(Boolean),
+    corsOrigins: Array.from(new Set(origins)),
     cookieSecure: e.COOKIE_SECURE ? e.COOKIE_SECURE === 'true' : isProduction,
     swaggerEnabled: e.SWAGGER_ENABLED ? e.SWAGGER_ENABLED === 'true' : !isProduction,
     isProduction,
