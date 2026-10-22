@@ -38,7 +38,7 @@ const EnvSchema = z
     S3_FORCE_PATH_STYLE: bool(true),
 
     MAIL_DRIVER: z.enum(['console', 'smtp', 'resend']).default('console'),
-    MAIL_FROM: z.string().default('LUXEM RENT A CAR <no-reply@localhost>'),
+    MAIL_FROM: z.string().default('LUEM RENT A CAR <no-reply@localhost>'),
     SMTP_HOST: optionalString,
     SMTP_PORT: z.coerce.number().int().positive().default(587),
     SMTP_USER: optionalString,

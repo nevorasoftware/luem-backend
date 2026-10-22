@@ -4,13 +4,13 @@ import { AuditService } from '../audit/audit.service';
 
 export const DEFAULT_SETTINGS: Record<string, any> = {
   business_info: {
-    companyName: 'LUXEM RENT A CAR',
+    companyName: 'LUEM RENT A CAR',
     country: 'El Salvador',
     currency: 'USD',
     timezone: 'America/El_Salvador',
     phone: '+503 2222-0000',
     whatsapp: '+503 7777-8888',
-    email: 'contacto@luxemrentacar.com',
+    email: 'contacto@luemrentacar.com',
     address: 'Boulevard de Los Héroes y Calle Gabriela Mistral, San Salvador, El Salvador',
     hours: 'Lunes a Domingo: 7:00 AM - 9:00 PM',
   },
@@ -25,8 +25,8 @@ export const DEFAULT_SETTINGS: Record<string, any> = {
   payment_instructions: {
     defaultText:
       'Depósitos o transferencias electrónicas a nuestras cuentas autorizadas:\n' +
-      '• Banco Agrícola: Cuenta Corriente #003-123456-78 a nombre de LUXEM S.A. DE C.V.\n' +
-      '• BAC Credomatic: Cuenta Corriente #109-876543-21 a nombre de LUXEM S.A. DE C.V.\n' +
+      '• Banco Agrícola: Cuenta Corriente #003-123456-78 a nombre de LUEM S.A. DE C.V.\n' +
+      '• BAC Credomatic: Cuenta Corriente #109-876543-21 a nombre de LUEM S.A. DE C.V.\n' +
       '• Transferencia 365 (UNI): Solicite el enlace o número de referencia directo por WhatsApp.\n' +
       'Por favor incluya su código de reserva en el concepto y envíe su comprobante.',
   },

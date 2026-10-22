@@ -1,6 +1,6 @@
-# LUXEM RENT A CAR — Backend API
+# LUEM RENT A CAR — Backend API
 
-API REST para el sistema integral de alquiler de vehículos **LUXEM RENT A CAR** (El Salvador).
+API REST para el sistema integral de alquiler de vehículos **LUEM RENT A CAR** (El Salvador).
 
 ## 🚀 Tecnologías
 - **Node.js 22 LTS** con **NestJS 11** y **TypeScript**.

@@ -199,7 +199,7 @@ export class ReservationsService {
 
     const instructions =
       params.paymentInstructions ||
-      'Depósito bancario o transferencia a cuentas autorizadas de LUXEM RENT A CAR. Indique el código de reserva como referencia y conserve su comprobante.';
+      'Depósito bancario o transferencia a cuentas autorizadas de LUEM RENT A CAR. Indique el código de reserva como referencia y conserve su comprobante.';
 
     this.mailService
       .sendBookingApproved({

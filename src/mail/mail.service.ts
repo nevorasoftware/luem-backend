@@ -131,14 +131,14 @@ export class MailService {
 <body>
   <div class="container">
     <div class="header">
-      <h1>LUXEM</h1>
+      <h1>LUEM</h1>
       <p>Rent a Car • El Salvador</p>
     </div>
     <div class="content">
       ${contentHtml}
     </div>
     <div class="footer">
-      <p>LUXEM RENT A CAR — Servicio de alquiler de vehículos premium en El Salvador.</p>
+      <p>LUEM RENT A CAR — Servicio de alquiler de vehículos premium en El Salvador.</p>
       <p>Este es un correo automático. Por favor no responda directamente a esta dirección.</p>
     </div>
   </div>
@@ -173,11 +173,11 @@ export class MailService {
       <p style="font-size:12px; color:#64748B;">O copie este enlace seguro en su navegador:<br/><code>${params.trackingUrl}</code></p>`,
     );
 
-    const text = `LUXEM RENT A CAR\n\n¡Hola, ${params.customerName}!\n\nHemos recibido su solicitud de reserva (${params.requestCode}) para el vehículo ${params.vehicleName}.\nRecogida: ${formatDateTime(params.pickupAt)}\nDevolución: ${formatDateTime(params.returnAt)}\nEstado: Pendiente de revisión.\n\nEste correo no constituye confirmación definitiva del alquiler.\nPuede consultar el avance de su solicitud en: ${params.trackingUrl}\n`;
+    const text = `LUEM RENT A CAR\n\n¡Hola, ${params.customerName}!\n\nHemos recibido su solicitud de reserva (${params.requestCode}) para el vehículo ${params.vehicleName}.\nRecogida: ${formatDateTime(params.pickupAt)}\nDevolución: ${formatDateTime(params.returnAt)}\nEstado: Pendiente de revisión.\n\nEste correo no constituye confirmación definitiva del alquiler.\nPuede consultar el avance de su solicitud en: ${params.trackingUrl}\n`;
 
     await this.sendMail({
       to: params.to,
-      subject: `Solicitud de reserva recibida — ${params.requestCode} | LUXEM`,
+      subject: `Solicitud de reserva recibida — ${params.requestCode} | LUEM`,
       template: 'request_received',
       html,
       text,
@@ -224,11 +224,11 @@ export class MailService {
       <p style="margin-top:20px; text-align: center;"><a href="${params.trackingUrl}" class="btn">Ver Mi Reserva e Instrucciones</a></p>`,
     );
 
-    const text = `LUXEM RENT A CAR\n\n¡Buenas noticias, ${params.customerName}!\n\nSu reserva (${params.reservationCode}) ha sido APROBADA.\nVehículo: ${params.vehicleName}\nRecogida: ${params.pickupLocation} (${formatDateTime(params.pickupAt)})\nDevolución: ${params.returnLocation} (${formatDateTime(params.returnAt)})\nTotal a pagar: ${formatUSD(params.totalCents)}\nSaldo pendiente: ${formatUSD(params.balanceDueCents)}\n\nInstrucciones de pago:\n${params.paymentInstructions}\n\nEnlace seguro: ${params.trackingUrl}\n`;
+    const text = `LUEM RENT A CAR\n\n¡Buenas noticias, ${params.customerName}!\n\nSu reserva (${params.reservationCode}) ha sido APROBADA.\nVehículo: ${params.vehicleName}\nRecogida: ${params.pickupLocation} (${formatDateTime(params.pickupAt)})\nDevolución: ${params.returnLocation} (${formatDateTime(params.returnAt)})\nTotal a pagar: ${formatUSD(params.totalCents)}\nSaldo pendiente: ${formatUSD(params.balanceDueCents)}\n\nInstrucciones de pago:\n${params.paymentInstructions}\n\nEnlace seguro: ${params.trackingUrl}\n`;
 
     await this.sendMail({
       to: params.to,
-      subject: `¡Reserva Aprobada! — ${params.reservationCode} | LUXEM`,
+      subject: `¡Reserva Aprobada! — ${params.reservationCode} | LUEM`,
       template: 'booking_approved',
       html,
       text,
@@ -254,11 +254,11 @@ export class MailService {
       <p>Si considera que se trata de un error o desea explorar otras opciones de vehículos o fechas, no dude en comunicarse con nosotros.</p>`,
     );
 
-    const text = `LUXEM RENT A CAR\n\nEstimado/a ${params.customerName},\nSu solicitud ${params.requestCode} no pudo ser aprobada.\nMotivo: ${params.reason}\n`;
+    const text = `LUEM RENT A CAR\n\nEstimado/a ${params.customerName},\nSu solicitud ${params.requestCode} no pudo ser aprobada.\nMotivo: ${params.reason}\n`;
 
     await this.sendMail({
       to: params.to,
-      subject: `Actualización de su solicitud — ${params.requestCode} | LUXEM`,
+      subject: `Actualización de su solicitud — ${params.requestCode} | LUEM`,
       template: 'request_rejected',
       html,
       text,
@@ -287,11 +287,11 @@ export class MailService {
       <p style="text-align: center;"><a href="${params.trackingUrl}" class="btn">Subir Documentos</a></p>`,
     );
 
-    const text = `LUXEM RENT A CAR\n\nHola, ${params.customerName},\nSe requiere información adicional para su solicitud ${params.requestCode}:\n${params.message}\n\nIngrese en: ${params.trackingUrl}\n`;
+    const text = `LUEM RENT A CAR\n\nHola, ${params.customerName},\nSe requiere información adicional para su solicitud ${params.requestCode}:\n${params.message}\n\nIngrese en: ${params.trackingUrl}\n`;
 
     await this.sendMail({
       to: params.to,
-      subject: `Información requerida para su solicitud — ${params.requestCode} | LUXEM`,
+      subject: `Información requerida para su solicitud — ${params.requestCode} | LUEM`,
       template: 'info_required',
       html,
       text,

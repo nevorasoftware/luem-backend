@@ -1,7 +1,7 @@
 {
   "name": "luem-backend",
   "version": "1.0.0",
-  "description": "API REST de LUXEM RENT A CAR (NestJS + Prisma + PostgreSQL)",
+  "description": "API REST de LUEM RENT A CAR (NestJS + Prisma + PostgreSQL)",
   "private": true,
   "license": "UNLICENSED",
   "engines": {

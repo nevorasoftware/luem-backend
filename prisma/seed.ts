@@ -5,7 +5,7 @@ import { DEFAULT_SETTINGS } from '../src/settings/settings.service';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('--- Iniciando Seed de LUXEM RENT A CAR ---');
+  console.log('--- Iniciando Seed de LUEM RENT A CAR ---');
 
   // 1. Usuarios iniciales
   const adminPass = await hashPassword('Admin123456!');
@@ -13,21 +13,21 @@ async function main() {
   const finPass = await hashPassword('Finanzas123456!');
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@luxemrentacar.com' },
+    where: { email: 'admin@luemrentacar.com' },
     update: {},
     create: {
-      email: 'admin@luxemrentacar.com',
-      fullName: 'Administrador General LUXEM',
+      email: 'admin@luemrentacar.com',
+      fullName: 'Administrador General LUEM',
       role: UserRole.ADMIN,
       passwordHash: adminPass,
     },
   });
 
   await prisma.user.upsert({
-    where: { email: 'operador@luxemrentacar.com' },
+    where: { email: 'operador@luemrentacar.com' },
     update: {},
     create: {
-      email: 'operador@luxemrentacar.com',
+      email: 'operador@luemrentacar.com',
       fullName: 'Operador de Flota',
       role: UserRole.OPERADOR,
       passwordHash: opPass,
@@ -35,10 +35,10 @@ async function main() {
   });
 
   await prisma.user.upsert({
-    where: { email: 'finanzas@luxemrentacar.com' },
+    where: { email: 'finanzas@luemrentacar.com' },
     update: {},
     create: {
-      email: 'finanzas@luxemrentacar.com',
+      email: 'finanzas@luemrentacar.com',
       fullName: 'Especialista de Finanzas',
       role: UserRole.FINANZAS,
       passwordHash: finPass,

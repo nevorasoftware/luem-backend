@@ -1,5 +1,5 @@
 // =============================================================================
-// LUXEM RENT A CAR — Esquema de base de datos (PostgreSQL)
+// LUEM RENT A CAR — Esquema de base de datos (PostgreSQL)
 // Todas las fechas se almacenan como timestamptz (UTC) y se presentan en
 // la zona horaria America/El_Salvador. Los importes monetarios usan
 // Decimal(12,2) en USD.

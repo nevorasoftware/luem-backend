@@ -52,9 +52,9 @@ async function bootstrap() {
   // Documentación OpenAPI / Swagger
   if (env.swaggerEnabled) {
     const config = new DocumentBuilder()
-      .setTitle('LUXEM RENT A CAR — API REST')
+      .setTitle('LUEM RENT A CAR — API REST')
       .setDescription(
-        'Documentación OpenAPI del sistema web integral de alquiler de vehículos LUXEM RENT A CAR (El Salvador).',
+        'Documentación OpenAPI del sistema web integral de alquiler de vehículos LUEM RENT A CAR (El Salvador).',
       )
       .setVersion('1.0')
       .addBearerAuth()
@@ -63,13 +63,13 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document, {
-      customSiteTitle: 'LUXEM API Docs',
+      customSiteTitle: 'LUEM API Docs',
     });
     logger.log(`Documentación Swagger disponible en: http://localhost:${env.PORT}/api/docs`);
   }
 
   await app.listen(env.PORT, '0.0.0.0');
-  logger.log(`Servidor LUXEM Backend escuchando en puerto ${env.PORT}`);
+  logger.log(`Servidor LUEM Backend escuchando en puerto ${env.PORT}`);
 }
 
 bootstrap();
