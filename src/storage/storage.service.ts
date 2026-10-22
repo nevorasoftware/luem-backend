@@ -139,7 +139,7 @@ export class StorageService {
         width,
         height,
         uploadedByUserId: options.uploadedByUserId,
-        content: finalBuffer,
+        content: Buffer.from(finalBuffer) as any,
       },
     });
 
@@ -150,7 +150,7 @@ export class StorageService {
     const file = await this.prisma.storedFile.findUnique({ where: { id: fileId } });
     if (!file) throw new NotFoundException('Archivo no encontrado.');
     if (file.content) {
-      const stream = Readable.from(file.content);
+      const stream = Readable.from(Buffer.from(file.content as any));
       return { file, stream };
     }
     const stream = await this.driver.getStream(file.storageKey);
@@ -161,7 +161,7 @@ export class StorageService {
     const file = await this.prisma.storedFile.findUnique({ where: { id: fileId } });
     if (!file) throw new NotFoundException('Archivo no encontrado.');
     if (file.content) {
-      return { file, buffer: file.content };
+      return { file, buffer: Buffer.from(file.content as any) };
     }
     const buffer = await this.driver.getBuffer(file.storageKey);
     return { file, buffer };
