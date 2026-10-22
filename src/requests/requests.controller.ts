@@ -108,7 +108,7 @@ export class RequestsController {
   // --- Endpoints Administrativos ---
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
-  @Get('admin')
+  @Get(['', 'admin'])
   async listAdminRequests(
     @Query('status') status?: RequestStatus,
     @Query('vehicleId') vehicleId?: string,

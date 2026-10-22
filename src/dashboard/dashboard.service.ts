@@ -95,11 +95,19 @@ export class DashboardService {
     const occupancyRate =
       totalVehicles > 0 ? Math.round((rentedVehicles / totalVehicles) * 100) : 0;
 
+    const confirmedReservations = await this.prisma.reservation.count({
+      where: { status: { in: ['CONFIRMADA', 'PENDIENTE_PAGO'] } },
+    });
+    const completedThisMonth = await this.prisma.reservation.count({
+      where: { status: 'FINALIZADA', returnedAt: { gte: startOfMonth } },
+    });
+
     return {
       fleet: {
         total: totalVehicles,
         available: availableNow,
         rented: rentedVehicles,
+        maintenance: maintenanceVehicles,
         inMaintenance: maintenanceVehicles,
         inactive: inactiveVehicles,
         occupancyRate,
@@ -107,6 +115,17 @@ export class DashboardService {
       requests: {
         pendingReview: pendingRequests,
         incompleteDocs: incompleteDocRequests,
+        totalThisMonth: pendingRequests + incompleteDocRequests,
+      },
+      reservations: {
+        active: rentedVehicles,
+        confirmed: confirmedReservations,
+        completedThisMonth,
+      },
+      financials: {
+        totalRevenueCents: monthlyIncomeCents,
+        pendingBalanceCents: totalPendingBalanceCents,
+        thisMonthRevenueCents: monthlyIncomeCents,
       },
       financial: {
         monthlyIncome: centsToDecimal(monthlyIncomeCents),
