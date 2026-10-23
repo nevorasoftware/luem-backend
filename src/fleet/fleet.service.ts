@@ -429,7 +429,26 @@ export class FleetService {
 
   // --- Subida y ordenamiento de fotos ---
 
-  async addVehiclePhoto(vehicleId: string, file: Express.Multer.File, alt?: string) {
+  async getVehiclePhotos(vehicleId: string) {
+    const photos = await this.prisma.vehiclePhoto.findMany({
+      where: { vehicleId },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return photos.map((p) => ({
+      id: p.id,
+      fileId: p.fileId,
+      url: `/api/storage/public/${p.fileId}`,
+      sortOrder: p.sortOrder,
+      alt: p.alt,
+    }));
+  }
+
+  async addVehiclePhoto(
+    vehicleId: string,
+    file: Express.Multer.File,
+    alt?: string,
+    isCover: boolean = false,
+  ) {
     const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
     if (!vehicle) throw new NotFoundException('Vehículo no encontrado.');
 
@@ -438,27 +457,156 @@ export class FleetService {
       optimizeImage: true,
     });
 
-    const maxSort = await this.prisma.vehiclePhoto.aggregate({
+    const existingPhotos = await this.prisma.vehiclePhoto.findMany({
       where: { vehicleId },
-      _max: { sortOrder: true },
+      orderBy: { sortOrder: 'asc' },
     });
-    const nextOrder = (maxSort._max.sortOrder ?? -1) + 1;
 
-    return this.prisma.vehiclePhoto.create({
+    let nextOrder = existingPhotos.length;
+
+    if (isCover || existingPhotos.length === 0) {
+      if (existingPhotos.length > 0) {
+        await this.prisma.$transaction(
+          existingPhotos.map((p) =>
+            this.prisma.vehiclePhoto.update({
+              where: { id: p.id },
+              data: { sortOrder: p.sortOrder + 1 },
+            }),
+          ),
+        );
+      }
+      nextOrder = 0;
+    }
+
+    const created = await this.prisma.vehiclePhoto.create({
       data: {
         vehicleId,
         fileId: storedFile.id,
         sortOrder: nextOrder,
         alt: alt || `${vehicle.brand} ${vehicle.model}`,
       },
-      include: { file: true },
     });
+
+    return {
+      id: created.id,
+      fileId: created.fileId,
+      url: `/api/storage/public/${created.fileId}`,
+      sortOrder: created.sortOrder,
+      alt: created.alt,
+    };
+  }
+
+  async addVehiclePhotosBulk(
+    vehicleId: string,
+    files: Express.Multer.File[],
+    coverIndex: number = 0,
+  ) {
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!vehicle) throw new NotFoundException('Vehículo no encontrado.');
+
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No se han recibido fotos para subir.');
+    }
+
+    const existingPhotos = await this.prisma.vehiclePhoto.findMany({
+      where: { vehicleId },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const newCreated: any[] = [];
+    const startSort = existingPhotos.length;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const storedFile = await this.storage.uploadFile(file, {
+        visibility: 'PUBLIC',
+        optimizeImage: true,
+      });
+
+      const photo = await this.prisma.vehiclePhoto.create({
+        data: {
+          vehicleId,
+          fileId: storedFile.id,
+          sortOrder: startSort + i,
+          alt: `${vehicle.brand} ${vehicle.model}`,
+        },
+      });
+      newCreated.push(photo);
+    }
+
+    const targetCoverIdx =
+      coverIndex !== undefined && coverIndex >= 0 && coverIndex < newCreated.length
+        ? coverIndex
+        : existingPhotos.length === 0
+          ? 0
+          : -1;
+
+    if (targetCoverIdx >= 0) {
+      const coverPhotoId = newCreated[targetCoverIdx].id;
+      return this.setVehicleCoverPhoto(vehicleId, coverPhotoId);
+    }
+
+    return this.getVehiclePhotos(vehicleId);
+  }
+
+  async setVehicleCoverPhoto(vehicleId: string, photoId: string) {
+    const photos = await this.prisma.vehiclePhoto.findMany({
+      where: { vehicleId },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    const targetPhoto = photos.find((p) => p.id === photoId);
+    if (!targetPhoto) {
+      throw new NotFoundException('Foto no encontrada en este vehículo.');
+    }
+
+    const otherPhotos = photos.filter((p) => p.id !== photoId);
+    const ordered = [targetPhoto, ...otherPhotos];
+
+    await this.prisma.$transaction(
+      ordered.map((p, idx) =>
+        this.prisma.vehiclePhoto.update({
+          where: { id: p.id },
+          data: { sortOrder: idx },
+        }),
+      ),
+    );
+
+    return this.getVehiclePhotos(vehicleId);
   }
 
   async deleteVehiclePhoto(photoId: string) {
     const photo = await this.prisma.vehiclePhoto.findUnique({ where: { id: photoId } });
     if (!photo) throw new NotFoundException('Foto no encontrada.');
+    const vehicleId = photo.vehicleId;
+    const fileId = photo.fileId;
+
     await this.prisma.vehiclePhoto.delete({ where: { id: photoId } });
+
+    if (fileId) {
+      try {
+        await this.prisma.storedFile.delete({ where: { id: fileId } });
+      } catch (e) {
+        // Ignorar si hay referencias
+      }
+    }
+
+    const remaining = await this.prisma.vehiclePhoto.findMany({
+      where: { vehicleId },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    if (remaining.length > 0) {
+      await this.prisma.$transaction(
+        remaining.map((p, idx) =>
+          this.prisma.vehiclePhoto.update({
+            where: { id: p.id },
+            data: { sortOrder: idx },
+          }),
+        ),
+      );
+    }
+
     return { success: true };
   }
 
@@ -471,7 +619,7 @@ export class FleetService {
         }),
       ),
     );
-    return { success: true };
+    return this.getVehiclePhotos(vehicleId);
   }
 
   // --- Categorías, Características y Ubicaciones ---

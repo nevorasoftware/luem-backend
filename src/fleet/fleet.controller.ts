@@ -9,10 +9,11 @@ import {
   Put,
   Query,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { FleetService, VehicleFilterQuery } from './fleet.service';
 import { PricingService, QuoteInput } from '../pricing/pricing.service';
 import { Public, Roles } from '../common/decorators/roles.decorator';
@@ -162,6 +163,20 @@ export class FleetController {
     return this.fleetService.deleteVehicle(id, adminId);
   }
 
+  // --- Endpoints de Gestión de Fotos de Vehículos ---
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Get('admin/vehicles/:id/photos')
+  async getPhotos(@Param('id') vehicleId: string) {
+    return this.fleetService.getVehiclePhotos(vehicleId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Get('vehicles/:id/photos')
+  async getPhotosAlias(@Param('id') vehicleId: string) {
+    return this.fleetService.getVehiclePhotos(vehicleId);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Post('admin/vehicles/:id/photos')
   @UseInterceptors(FileInterceptor('file'))
@@ -169,8 +184,63 @@ export class FleetController {
     @Param('id') vehicleId: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('alt') alt?: string,
+    @Body('isCover') isCover?: string,
   ) {
-    return this.fleetService.addVehiclePhoto(vehicleId, file, alt);
+    return this.fleetService.addVehiclePhoto(vehicleId, file, alt, isCover === 'true' || isCover === '1');
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('vehicles/:id/photos')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadPhotoAlias(
+    @Param('id') vehicleId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('alt') alt?: string,
+    @Body('isCover') isCover?: string,
+  ) {
+    return this.fleetService.addVehiclePhoto(vehicleId, file, alt, isCover === 'true' || isCover === '1');
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('admin/vehicles/:id/photos/bulk')
+  @UseInterceptors(FilesInterceptor('files', 20))
+  async uploadPhotosBulk(
+    @Param('id') vehicleId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('coverIndex') coverIndex?: string,
+  ) {
+    const idx = coverIndex !== undefined ? parseInt(coverIndex, 10) : undefined;
+    return this.fleetService.addVehiclePhotosBulk(vehicleId, files, isNaN(idx!) ? undefined : idx);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Post('vehicles/:id/photos/bulk')
+  @UseInterceptors(FilesInterceptor('files', 20))
+  async uploadPhotosBulkAlias(
+    @Param('id') vehicleId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('coverIndex') coverIndex?: string,
+  ) {
+    const idx = coverIndex !== undefined ? parseInt(coverIndex, 10) : undefined;
+    return this.fleetService.addVehiclePhotosBulk(vehicleId, files, isNaN(idx!) ? undefined : idx);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Put('admin/vehicles/:id/photos/:photoId/cover')
+  async setCoverPhoto(
+    @Param('id') vehicleId: string,
+    @Param('photoId') photoId: string,
+  ) {
+    return this.fleetService.setVehicleCoverPhoto(vehicleId, photoId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Put('vehicles/:id/photos/:photoId/cover')
+  async setCoverPhotoAlias(
+    @Param('id') vehicleId: string,
+    @Param('photoId') photoId: string,
+  ) {
+    return this.fleetService.setVehicleCoverPhoto(vehicleId, photoId);
   }
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
@@ -180,8 +250,23 @@ export class FleetController {
   }
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Delete('photos/:id')
+  async deletePhotoAlias(@Param('id') photoId: string) {
+    return this.fleetService.deleteVehiclePhoto(photoId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Put('admin/vehicles/:id/photos/reorder')
   async reorderPhotos(
+    @Param('id') vehicleId: string,
+    @Body('photoIds') photoIds: string[],
+  ) {
+    return this.fleetService.reorderVehiclePhotos(vehicleId, photoIds);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Put('vehicles/:id/photos/reorder')
+  async reorderPhotosAlias(
     @Param('id') vehicleId: string,
     @Body('photoIds') photoIds: string[],
   ) {
