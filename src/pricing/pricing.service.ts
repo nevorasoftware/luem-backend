@@ -211,11 +211,25 @@ export class PricingService {
 
     const totalCents = Math.max(0, subtotalCents - discountTotalCents);
 
-    // Depósito de garantía
+    // Depósito de garantía: específico de vehículo > categoría > configuración del sistema
+    let systemDefaultDepositCents = 40000;
+    try {
+      const setting = await this.prisma.setting.findUnique({ where: { key: 'rental_policy' } });
+      if (setting && setting.value && typeof setting.value === 'object') {
+        const val = setting.value as any;
+        if (val.depositAmount !== undefined) {
+          const num = Number(val.depositAmount);
+          systemDefaultDepositCents = num > 1000 ? num : Math.round(num * 100);
+        }
+      }
+    } catch {
+      // fallback
+    }
+
     const depositRequiredCents =
       toCents(vehicle.depositAmount) ||
       toCents(vehicle.category.depositAmount) ||
-      25000; // $250.00 por defecto
+      systemDefaultDepositCents;
 
     return {
       billableDays,

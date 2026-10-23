@@ -17,13 +17,39 @@ export class SettingsController {
     return this.settingsService.getPublicSettings();
   }
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Get()
+  async getSettings() {
+    return this.settingsService.getAllSettingsAdmin();
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Get('admin')
   async getAllAdmin() {
     return this.settingsService.getAllSettingsAdmin();
   }
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Put()
+  async updateSettings(
+    @Body() body: any,
+    @CurrentUser('id') adminId: string,
+    @CurrentUser('fullName') adminName: string,
+  ) {
+    return this.settingsService.updateGeneralSettings(body, adminId, adminName || 'Admin');
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
+  @Put('admin')
+  async updateSettingsAlias(
+    @Body() body: any,
+    @CurrentUser('id') adminId: string,
+    @CurrentUser('fullName') adminName: string,
+  ) {
+    return this.settingsService.updateGeneralSettings(body, adminId, adminName || 'Admin');
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.OPERADOR)
   @Put('admin/:key')
   async updateSetting(
     @Param('key') key: string,
@@ -31,6 +57,6 @@ export class SettingsController {
     @CurrentUser('id') adminId: string,
     @CurrentUser('fullName') adminName: string,
   ) {
-    return this.settingsService.updateSetting(key, value, adminId, adminName);
+    return this.settingsService.updateSetting(key, value, adminId, adminName || 'Admin');
   }
 }
