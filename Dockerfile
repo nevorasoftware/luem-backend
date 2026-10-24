@@ -11,7 +11,6 @@ COPY . .
 
 RUN npx prisma generate
 RUN npm run build
-RUN npx tsc prisma/seed.ts --outDir dist/prisma --target ES2022 --module commonjs --moduleResolution node --skipLibCheck
 
 FROM node:22-alpine AS runner
 
@@ -26,4 +25,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "npx prisma db push && (node dist/prisma/seed.js || node dist/prisma/prisma/seed.js || true) && node dist/main.js"]
+CMD ["sh", "-c", "npx prisma db push && node dist/main.js"]
