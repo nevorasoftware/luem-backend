@@ -206,6 +206,30 @@ export class FleetController {
     return this.fleetService.deleteVehicle(id, adminId);
   }
 
+  // --- Endpoints de Gestión de Categorías ---
+
+  @Roles(UserRole.ADMIN)
+  @Post('admin/categories')
+  async createCategory(@CurrentUser('id') adminId: string, @Body() body: any) {
+    return this.fleetService.createCategory(body, adminId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Put('admin/categories/:id')
+  async updateCategory(
+    @CurrentUser('id') adminId: string,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.fleetService.updateCategory(id, body, adminId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete('admin/categories/:id')
+  async deleteCategory(@CurrentUser('id') adminId: string, @Param('id') id: string) {
+    return this.fleetService.deleteCategory(id, adminId);
+  }
+
   // --- Endpoints de Gestión de Fotos de Vehículos ---
 
   @Roles(UserRole.ADMIN, UserRole.OPERADOR)

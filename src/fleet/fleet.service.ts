@@ -230,12 +230,12 @@ export class FleetService {
 
     let categoryId = data.categoryId;
     if (!categoryId) {
-      const defaultCat = await this.prisma.category.findFirst({ where: { active: true } });
-      if (defaultCat) categoryId = defaultCat.id;
-      else {
-        const anyCat = await this.prisma.category.findFirst();
-        if (anyCat) categoryId = anyCat.id;
+      let defaultCat = await this.prisma.category.findFirst({ where: { active: true } });
+      if (!defaultCat) {
+        await this.ensureBaseCategories();
+        defaultCat = await this.prisma.category.findFirst({ where: { active: true } });
       }
+      if (defaultCat) categoryId = defaultCat.id;
     }
 
     const dailyRateVal = data.dailyRate !== undefined
@@ -625,10 +625,167 @@ export class FleetService {
   // --- Categorías, Características y Ubicaciones ---
 
   async listCategories() {
-    return this.prisma.category.findMany({
+    let categories = await this.prisma.category.findMany({
       where: { active: true },
       orderBy: { sortOrder: 'asc' },
     });
+
+    if (categories.length === 0) {
+      await this.ensureBaseCategories();
+      categories = await this.prisma.category.findMany({
+        where: { active: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+    }
+
+    return categories;
+  }
+
+  async ensureBaseCategories() {
+    const count = await this.prisma.category.count();
+    if (count > 0) return;
+
+    const baseCategories = [
+      {
+        name: 'Sedán Económico',
+        slug: 'sedan-economico',
+        description: 'Vehículos eficientes y cómodos para ciudad y viajes ligeros.',
+        dailyRate: new Prisma.Decimal(35.0),
+        depositAmount: new Prisma.Decimal(250.0),
+        sortOrder: 1,
+      },
+      {
+        name: 'Sedán Ejecutivo',
+        slug: 'sedan-ejecutivo',
+        description: 'Elegancia, mayor espacio y máximo confort.',
+        dailyRate: new Prisma.Decimal(50.0),
+        depositAmount: new Prisma.Decimal(350.0),
+        sortOrder: 2,
+      },
+      {
+        name: 'SUV Compacta',
+        slug: 'suv-compacta',
+        description: 'Versatilidad, altura y seguridad para recorrer el país.',
+        dailyRate: new Prisma.Decimal(60.0),
+        depositAmount: new Prisma.Decimal(400.0),
+        sortOrder: 3,
+      },
+      {
+        name: 'SUV Familiar (7 Pasajeros)',
+        slug: 'suv-familiar-7-pasajeros',
+        description: 'Capacidad para toda la familia con 3 filas de asientos.',
+        dailyRate: new Prisma.Decimal(85.0),
+        depositAmount: new Prisma.Decimal(500.0),
+        sortOrder: 4,
+      },
+      {
+        name: 'Pick-Up 4x4',
+        slug: 'pickup-4x4',
+        description: 'Potencia, tracción total y capacidad de carga para todo terreno.',
+        dailyRate: new Prisma.Decimal(75.0),
+        depositAmount: new Prisma.Decimal(500.0),
+        sortOrder: 5,
+      },
+    ];
+
+    for (const cat of baseCategories) {
+      await this.prisma.category.upsert({
+        where: { slug: cat.slug },
+        update: {},
+        create: {
+          name: cat.name,
+          slug: cat.slug,
+          description: cat.description,
+          dailyRate: cat.dailyRate,
+          depositAmount: cat.depositAmount,
+          sortOrder: cat.sortOrder,
+          active: true,
+        },
+      });
+    }
+  }
+
+  async createCategory(data: any, adminId: string) {
+    const name = (data.name || '').trim();
+    if (!name) throw new BadRequestException('El nombre de la categoría es requerido.');
+
+    const slug = data.slug
+      ? data.slug.trim().toLowerCase()
+      : name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    const cat = await this.prisma.category.create({
+      data: {
+        name,
+        slug,
+        description: data.description,
+        dailyRate: data.dailyRate !== undefined ? new Prisma.Decimal(data.dailyRate) : null,
+        depositAmount: data.depositAmount !== undefined ? new Prisma.Decimal(data.depositAmount) : null,
+        sortOrder: Number(data.sortOrder || 0),
+        active: data.active !== false,
+      },
+    });
+
+    await this.audit.log({
+      actorType: 'USUARIO',
+      actorUserId: adminId,
+      action: 'CREATE_CATEGORY',
+      entityType: 'Category',
+      entityId: cat.id,
+      summary: `Categoría creada: ${cat.name}`,
+    });
+
+    return cat;
+  }
+
+  async updateCategory(id: string, data: any, adminId: string) {
+    const existing = await this.prisma.category.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Categoría no encontrada.');
+
+    const updated = await this.prisma.category.update({
+      where: { id },
+      data: {
+        name: data.name?.trim(),
+        description: data.description,
+        dailyRate: data.dailyRate !== undefined ? new Prisma.Decimal(data.dailyRate) : undefined,
+        depositAmount: data.depositAmount !== undefined ? new Prisma.Decimal(data.depositAmount) : undefined,
+        sortOrder: data.sortOrder !== undefined ? Number(data.sortOrder) : undefined,
+        active: data.active !== undefined ? Boolean(data.active) : undefined,
+      },
+    });
+
+    await this.audit.log({
+      actorType: 'USUARIO',
+      actorUserId: adminId,
+      action: 'UPDATE_CATEGORY',
+      entityType: 'Category',
+      entityId: id,
+      summary: `Categoría actualizada: ${updated.name}`,
+    });
+
+    return updated;
+  }
+
+  async deleteCategory(id: string, adminId: string) {
+    const countVehicles = await this.prisma.vehicle.count({ where: { categoryId: id, deletedAt: null } });
+    if (countVehicles > 0) {
+      throw new BadRequestException('No se puede eliminar una categoría que tiene vehículos activos asignados.');
+    }
+
+    await this.prisma.category.update({
+      where: { id },
+      data: { active: false },
+    });
+
+    await this.audit.log({
+      actorType: 'USUARIO',
+      actorUserId: adminId,
+      action: 'DEACTIVATE_CATEGORY',
+      entityType: 'Category',
+      entityId: id,
+      summary: `Categoría desactivada: ${id}`,
+    });
+
+    return { success: true };
   }
 
   async listFeatures() {
