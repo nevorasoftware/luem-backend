@@ -80,19 +80,62 @@ export class FleetController {
   }
 
   @Public()
+  @Get('extras')
+  async getExtras() {
+    return this.fleetService.listExtras();
+  }
+
+  @Public()
   @Post('quote')
   async calculateQuote(@Body() body: any) {
+    const p = body.pickupAt || body.pickupDate;
+    const r = body.returnAt || body.returnDate;
+
+    let extras = body.extras;
+    if (!extras && Array.isArray(body.extraIds)) {
+      extras = body.extraIds.map((id: string) => ({ extraId: id, quantity: 1 }));
+    }
+
     const input: QuoteInput = {
       vehicleId: body.vehicleId,
-      pickupAt: new Date(body.pickupAt),
-      returnAt: new Date(body.returnAt),
-      pickupLocationId: body.pickupLocationId,
-      returnLocationId: body.returnLocationId,
-      extras: body.extras,
+      pickupAt: p ? new Date(p) : new Date(),
+      returnAt: r ? new Date(r) : new Date(),
+      pickupLocationId:
+        body.pickupLocationId ||
+        (typeof body.pickupLocation === 'string' && body.pickupLocation.length === 36
+          ? body.pickupLocation
+          : undefined),
+      returnLocationId:
+        body.returnLocationId ||
+        (typeof body.returnLocation === 'string' && body.returnLocation.length === 36
+          ? body.returnLocation
+          : undefined),
+      extras,
       discountCode: body.discountCode,
     };
-    return this.pricingService.calculateQuote(input);
+
+    const quote = await this.pricingService.calculateQuote(input);
+
+    return {
+      ...quote,
+      rentalDays: quote.billableDays,
+      dailyRate: quote.dailyRateCents,
+      daysSubtotal: quote.baseAmountCents,
+      volumeDiscountAmount: quote.discountTotalCents,
+      promoDiscountAmount: 0,
+      extrasTotal: quote.extrasTotalCents,
+      locationFee: quote.feesTotalCents,
+      subtotal:
+        quote.baseAmountCents +
+        quote.extrasTotalCents +
+        quote.feesTotalCents -
+        quote.discountTotalCents,
+      taxAmount: quote.taxTotalCents,
+      total: quote.totalCents,
+      securityDeposit: quote.depositRequiredCents,
+    };
   }
+
 
   // --- Endpoints Administrativos ---
 

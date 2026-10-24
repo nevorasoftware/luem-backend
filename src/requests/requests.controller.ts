@@ -38,6 +38,10 @@ export class RequestsController {
         { name: 'duiFile', maxCount: 1 },
         { name: 'licenseFile', maxCount: 1 },
         { name: 'utilityBillFile', maxCount: 1 },
+        { name: 'duiFront', maxCount: 1 },
+        { name: 'duiBack', maxCount: 1 },
+        { name: 'licenseFront', maxCount: 1 },
+        { name: 'utilityBill', maxCount: 1 },
       ],
       { limits: { fileSize: 12 * 1024 * 1024 } }, // 12MB límite seguro
     ),
@@ -48,6 +52,10 @@ export class RequestsController {
       duiFile?: Express.Multer.File[];
       licenseFile?: Express.Multer.File[];
       utilityBillFile?: Express.Multer.File[];
+      duiFront?: Express.Multer.File[];
+      duiBack?: Express.Multer.File[];
+      licenseFront?: Express.Multer.File[];
+      utilityBill?: Express.Multer.File[];
     },
     @Body() body: any,
     @Req() req: Request,
@@ -55,24 +63,32 @@ export class RequestsController {
     let extras = [];
     if (body.extras) {
       extras = typeof body.extras === 'string' ? JSON.parse(body.extras) : body.extras;
+    } else if (body['extraIds[]'] || body.extraIds) {
+      const rawExtras = body['extraIds[]'] || body.extraIds;
+      const ids = Array.isArray(rawExtras) ? rawExtras : [rawExtras];
+      extras = ids.map((id: string) => ({ extraId: id, quantity: 1 }));
     }
 
     const dto = {
       vehicleId: body.vehicleId,
-      pickupAt: body.pickupAt,
-      returnAt: body.returnAt,
-      pickupLocationId: body.pickupLocationId,
-      returnLocationId: body.returnLocationId,
+      pickupAt: body.pickupAt || body.pickupDate,
+      returnAt: body.returnAt || body.returnDate,
+      pickupLocationId: body.pickupLocationId || body.pickupLocation,
+      returnLocationId: body.returnLocationId || body.returnLocation,
       extras,
       discountCode: body.discountCode,
-      customerNotes: body.customerNotes,
-      privacyAccepted: body.privacyAccepted === 'true' || body.privacyAccepted === true,
+      customerNotes: body.customerNotes || body.comments,
+      privacyAccepted:
+        body.privacyAccepted === 'true' ||
+        body.privacyAccepted === true ||
+        body.acceptTerms === 'true' ||
+        body.acceptTerms === true,
       fullName: body.fullName,
-      dui: body.dui,
+      dui: body.dui || body.documentNumber,
       email: body.email,
       phone: body.phone,
-      address: body.address,
-      licenseNumber: body.licenseNumber,
+      address: body.address || 'El Salvador',
+      licenseNumber: body.licenseNumber || body.driverLicenseNumber,
     };
 
     const clientIp = req.ip || req.socket.remoteAddress;
@@ -80,13 +96,14 @@ export class RequestsController {
     return this.requestsService.createPublicRequest(
       dto,
       {
-        duiFile: files?.duiFile?.[0],
-        licenseFile: files?.licenseFile?.[0],
-        utilityBillFile: files?.utilityBillFile?.[0],
+        duiFile: files?.duiFile?.[0] || files?.duiFront?.[0],
+        licenseFile: files?.licenseFile?.[0] || files?.licenseFront?.[0],
+        utilityBillFile: files?.utilityBillFile?.[0] || files?.utilityBill?.[0],
       },
       clientIp,
     );
   }
+
 
   @Public()
   @Get('track')

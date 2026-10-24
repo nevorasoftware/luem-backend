@@ -641,4 +641,23 @@ export class FleetService {
       orderBy: { sortOrder: 'asc' },
     });
   }
+
+  async listExtras() {
+    const extras = await this.prisma.extra.findMany({
+      where: { active: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return extras.map((e) => ({
+      id: e.id,
+      code: e.code,
+      name: e.name,
+      description: e.description,
+      pricingType: e.pricingType,
+      price: centsToDecimal(toCents(e.price)),
+      pricePerDay: e.pricingType === 'POR_DIA' ? Number(e.price) : 0,
+      flatFee: e.pricingType === 'POR_RENTA' ? Number(e.price) : 0,
+      maxQuantity: e.maxQuantity,
+    }));
+  }
 }
+
